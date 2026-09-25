@@ -4,6 +4,63 @@ Task atomici per implementare `user-service` seguendo `design.md` e `requirement
 Ogni task è tracciato ai requisiti. Da eseguire uno alla volta da Kiro ("Start task"), con
 un commit per task: `feat(user): <descrizione> [T-xx]`.
 
+## Task Dependency Graph
+
+Il grafo mostra l'ordine di esecuzione: un task può iniziare solo dopo i suoi predecessori.
+
+```mermaid
+graph TD
+    T1[1. Scaffolding e config] --> T2[2. Modelli di dominio]
+    T2 --> T3[3. Validazione input]
+    T1 --> T4[4. Repository: interfaccia + memory]
+    T4 --> T5[5. Backend json e sqlite]
+    T2 --> T6[6. Servizio e regole di business]
+    T3 --> T6
+    T4 --> T6
+    T6 --> T7[7. Gestione errori HTTP]
+    T6 --> T8[8. Endpoint di scrittura]
+    T7 --> T8
+    T6 --> T9[9. Endpoint di lettura]
+    T7 --> T9
+    T1 --> T10[10. Health check]
+    T6 --> T11[11. Unit test dominio/regole]
+    T5 --> T12[12. Unit test repository 3 backend]
+    T8 --> T13[13. Test di contratto]
+    T9 --> T13
+    T10 --> T13
+    T11 --> T14[14. Coverage e manifest]
+    T12 --> T14
+    T13 --> T14
+```
+
+Dipendenze in sintesi:
+
+- **T1** non ha predecessori (base del progetto).
+- **T2, T3** dipendono dal dominio/config; **T4→T5** costruiscono la persistenza.
+- **T6** (regole di business) richiede modelli, validazione e repository.
+- **T7, T8, T9** (livello HTTP) dipendono dal servizio di dominio (e dagli errori per 8/9).
+- **T11–T13** (test) seguono le rispettive parti implementate.
+- **T14** è finale: coverage e manifest dopo che tutto è implementato e testato.
+
+Le "wave" raggruppano i task eseguibili in parallelo (stesso livello topologico):
+
+```json
+{
+  "waves": [
+    { "wave": 1, "tasks": [1] },
+    { "wave": 2, "tasks": [2, 4, 10] },
+    { "wave": 3, "tasks": [3, 5] },
+    { "wave": 4, "tasks": [6] },
+    { "wave": 5, "tasks": [7, 11, 12] },
+    { "wave": 6, "tasks": [8, 9] },
+    { "wave": 7, "tasks": [13] },
+    { "wave": 8, "tasks": [14] }
+  ]
+}
+```
+
+## Tasks
+
 - [ ] 1. Scaffolding del servizio e configurazione
   - Creare `services/user-service/` con `app/__init__.py` (factory `create_app`),
     `app/__main__.py` (legge `PORT`, avvia il server) e `requirements.txt` (flask, requests).
