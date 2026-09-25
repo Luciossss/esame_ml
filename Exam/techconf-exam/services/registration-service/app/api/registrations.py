@@ -13,6 +13,7 @@ from werkzeug.exceptions import BadRequest
 
 from ..clients.event_client import EventClient
 from ..clients.user_client import UserClient
+from ..domain.models import RegistrationStatus
 from ..domain.service import RegistrationService
 from ..domain.validation import ValidationError
 from ..repository.factory import build_repository
@@ -73,12 +74,19 @@ def create_registration():
 @bp.get("/api/v1/registrations")
 def list_registrations():
     page, page_size = _parse_pagination()
+    status = request.args.get("status")
+    if status is not None and status not in {
+        item.value for item in RegistrationStatus
+    }:
+        raise ValidationError(
+            {"status": "must be one of: confirmed, cancelled"}
+        )
     items, total = _service().list_registrations(
         page,
         page_size,
         user_id=request.args.get("user_id"),
         event_id=request.args.get("event_id"),
-        status=request.args.get("status"),
+        status=status,
     )
     return (
         jsonify(
