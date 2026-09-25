@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Unit tests on Python save",
+      "trigger": "PostFileSave",
+      "description": "Esegue gli unit test del servizio quando si salva un file .py sotto services/<svc>-service/",
+      "matcher": "services[/\\\\][^/\\\\]+-service[/\\\\].*\\.py$",
+      "action": {
+        "type": "command",
+        "command": "python -c \"import json,sys,subprocess,re; d=json.load(sys.stdin); p=(d.get('filePath') or d.get('path') or '').replace(chr(92),'/'); m=re.search(r'services/([^/]+-service)/',p); sys.exit(0) if not m else None; svc=p[:m.end()-1]; print('Running unit tests for',svc); subprocess.run(['python','-m','pytest','tests/unit','-q','--cov=app','--cov-report=term-missing'],cwd=svc); sys.exit(0)\""
+      }
+    }
+  ]
+}
