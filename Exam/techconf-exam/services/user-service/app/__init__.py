@@ -18,9 +18,11 @@ def create_app(config: Config | None = None) -> Flask:
     app.config["APP_CONFIG"] = config
 
     from .api.errors import register_error_handlers
+    from .api.users import bp as users_bp
 
     register_error_handlers(app)
+    app.register_blueprint(users_bp)
 
-    # I blueprint (users, health) sono registrati nei task T8-T10.
+    # Il blueprint health è registrato nel task T10.
 
     return app
