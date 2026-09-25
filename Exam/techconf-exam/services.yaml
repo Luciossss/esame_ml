@@ -1,0 +1,20 @@
+# -----------------------------------------------------------------------------
+# services.yaml — manifest letto dalla suite di collaudo
+# -----------------------------------------------------------------------------
+# Dichiara i servizi implementati. Per ognuno la suite:
+#   1. avvia il processo con `command` da `cwd`;
+#   2. inietta PORT e le variabili *_SERVICE_URL (e opz. STORAGE_BACKEND, DATA_DIR);
+#   3. attende che GET {base_url}/health risponda 200;
+#   4. esegue i test, poi termina il processo.
+# Ogni servizio legge SEMPRE la porta da PORT (collaudo: 15001-15005, 15101+ resilienza).
+# I servizi non elencati qui sono SKIPPED (non falliti).
+# -----------------------------------------------------------------------------
+
+services:
+  # ------------------------------- mandatory -------------------------------
+  user:
+    cwd: services/user-service
+    command: python -m app
+    health_path: /health
+
+  # event e registration verranno aggiunti dopo l'implementazione delle rispettive spec.
