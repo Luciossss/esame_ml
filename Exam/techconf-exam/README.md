@@ -1,66 +1,265 @@
-# techconf-exam — Template Repository
+# TechConf — Microservizi per conferenze tech
 
-Template repository for the **TechConf** practical exam (Spec-Driven Development with Kiro).
+Progetto dell'esame pratico **Spec-Driven Development with Kiro**. La piattaforma gestisce
+utenti, eventi e iscrizioni attraverso tre microservizi Flask indipendenti che comunicano
+via HTTP e rispettano i contratti OpenAPI forniti.
 
-Fork this repository and implement the microservices described in `Exam.MD` / the exam
-brief. This template ships the **non-modifiable** contracts and the acceptance test suite.
+## Servizi implementati
 
-## What this template provides
+| Servizio | Base path | Porta dev | Dipendenze |
+|---|---|---:|---|
+| user-service | `/api/v1/users` | 5001 | — |
+| event-service | `/api/v1/events` | 5002 | user-service |
+| registration-service | `/api/v1/registrations` | 5003 | user-service, event-service |
 
-| Path | Content | Modifiable? |
+Servizi opzionali (`feedback-service`, `notification-service`) non implementati.
+
+## Architettura
+
+Ogni servizio è autonomo e segue la stessa separazione a livelli:
+
+```text
+services/<nome>-service/
+  app/
+    api/          # route Flask, serializzazione, status code, error handler
+    domain/       # modelli, validazione, regole di business REQ-*-B*
+    repository/   # interfaccia + backend memory/json/sqlite
+    clients/      # chiamate HTTP alle dipendenze (se presenti)
+    config.py     # unico punto di lettura delle variabili d'ambiente
+    __main__.py   # entrypoint: python -m app
+  tests/
+    unit/
+    integration/
+```
+
+I servizi non importano codice applicativo l'uno dall'altro: comunicano esclusivamente via
+HTTP. Tutti leggono la porta da `PORT`; gli URL delle dipendenze provengono solo dalle
+variabili `*_SERVICE_URL`.
+
+## Requisiti
+
+- Python **3.12** (target della traccia; verificato localmente anche con Python 3.13)
+- Runtime: `flask`, `requests`
+- Test: `pytest`, `pytest-cov`, `responses`
+- Validatore dei contratti: `PyYAML`, `jsonschema`
+- Nessun DBMS esterno: JSON e SQLite usano esclusivamente la libreria standard.
+
+## Installazione
+
+Da PowerShell, nella root `Exam/techconf-exam`:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r tests\integration\requirements.txt
+python -m pip install -r services\user-service\requirements.txt
+python -m pip install -r services\event-service\requirements.txt
+python -m pip install -r services\registration-service\requirements.txt
+```
+
+## Configurazione
+
+| Variabile | Default | Descrizione |
 |---|---|---|
-| `contracts/openapi/*.yaml` | OpenAPI 3.0 contracts for the 5 services — the source of truth | ❌ NO |
-| `contracts/validator.py` | `assert_matches_contract(service, method, path, response)` helper | ❌ NO |
-| `tests/integration/` | Acceptance test suite (client→service, service→service, e2e, resilience) | ❌ NO |
-| `CHECKSUMS.sha256` | Fingerprints of the non-modifiable files | ❌ NO |
-| `services.example.yaml` | Example manifest read by the suite to launch your services | ✅ copy to `services.yaml` |
+| `PORT` | 5001/5002/5003 | Porta di ascolto; la suite usa 15001–15003 e 15101+ per resilienza |
+| `STORAGE_BACKEND` | `memory` | `memory`, `json` oppure `sqlite` |
+| `DATA_DIR` | `./data` | Directory dei file JSON/SQLite (esclusa da git) |
+| `USER_SERVICE_URL` | `http://localhost:5001` | URL di user-service |
+| `EVENT_SERVICE_URL` | `http://localhost:5002` | URL di event-service |
 
-Everything else (service code, unit tests, specs, steering) is designed by you.
+Le chiamate tra servizi usano timeout di 2 secondi. Un 404 da una dipendenza diventa
+`422 REFERENCE_NOT_FOUND`; timeout, connessione rifiutata e 5xx diventano
+`503 DEPENDENCY_UNAVAILABLE`.
 
-## Verifying the protected files
+## Avvio in sviluppo
+
+Aprire tre terminali PowerShell separati.
+
+### user-service
+
+```powershell
+Set-Location services\user-service
+$env:PORT = "5001"
+$env:STORAGE_BACKEND = "memory"
+python -m app
+```
+
+### event-service
+
+```powershell
+Set-Location services\event-service
+$env:PORT = "5002"
+$env:USER_SERVICE_URL = "http://localhost:5001"
+$env:STORAGE_BACKEND = "memory"
+python -m app
+```
+
+### registration-service
+
+```powershell
+Set-Location services\registration-service
+$env:PORT = "5003"
+$env:USER_SERVICE_URL = "http://localhost:5001"
+$env:EVENT_SERVICE_URL = "http://localhost:5002"
+$env:STORAGE_BACKEND = "memory"
+python -m app
+```
+
+Health check di ogni servizio:
+
+```text
+GET /health -> 200 {"status": "ok", "service": "<nome>"}
+```
+
+## Avvio da `services.yaml`
+
+La suite di collaudo legge `services.yaml` e avvia i processi con:
+
+```yaml
+services:
+  user:
+    cwd: services/user-service
+    command: python -m app
+  event:
+    cwd: services/event-service
+    command: python -m app
+  registration:
+    cwd: services/registration-service
+    command: python -m app
+```
+
+La suite inietta `PORT` e tutti gli URL delle dipendenze.
+
+## Persistenza
+
+### Memory
+
+```powershell
+$env:STORAGE_BACKEND = "memory"
+```
+
+I dati restano in RAM e vengono persi al riavvio.
+
+### JSON
+
+```powershell
+$env:STORAGE_BACKEND = "json"
+$env:DATA_DIR = ".\data"
+```
+
+Ogni servizio salva le proprie risorse in un file JSON sotto `DATA_DIR`.
+
+### SQLite
+
+```powershell
+$env:STORAGE_BACKEND = "sqlite"
+$env:DATA_DIR = ".\data"
+```
+
+Ogni servizio usa un file SQLite tramite `sqlite3` della libreria standard. Il dominio
+dipende dall'interfaccia repository, quindi il cambio backend non modifica le regole di
+business.
+
+## API principali
+
+### user-service
+
+- `POST /api/v1/users`
+- `GET /api/v1/users`
+- `GET|PUT|PATCH|DELETE /api/v1/users/{id}`
+
+Email univoca case-insensitive e memorizzata in minuscolo.
+
+### event-service
+
+- `POST /api/v1/events`
+- `GET /api/v1/events`
+- `GET|PUT|PATCH|DELETE /api/v1/events/{id}`
+
+Valida l'organizzatore su user-service e gestisce le transizioni
+`draft → published/cancelled`, `published → cancelled`.
+
+### registration-service
+
+- `POST /api/v1/registrations`
+- `GET /api/v1/registrations`
+- `GET|PATCH|DELETE /api/v1/registrations/{id}`
+- `GET /api/v1/registrations/stats?event_id=...`
+- `PUT /api/v1/registrations/{id}` → 405
+
+Impedisce doppie iscrizioni confermate, rispetta la capienza, copia `amount` dal prezzo
+dell'evento e consente solo `confirmed → cancelled`.
+
+## Test
+
+### Unit test e coverage
+
+Eseguire dalla cartella del singolo servizio:
+
+```powershell
+python -m pytest tests\unit -v --cov=app --cov-report=term-missing
+```
+
+Coverage rilevata prima della consegna:
+
+| Servizio | Test unit/contratto | Coverage |
+|---|---:|---:|
+| user-service | 49 | 91% |
+| event-service | 39+ | 90% |
+| registration-service | 43+ | 91% |
+
+I conteggi `+` includono i test di regressione aggiunti durante il bug fixing.
+
+### Integration test propri
+
+I test avviano realmente i servizi su porte libere e li terminano al termine della suite:
+
+```powershell
+Set-Location services\event-service
+python -m pytest tests\integration -v
+
+Set-Location ..\registration-service
+python -m pytest tests\integration -v
+```
+
+Per ciascun servizio sono coperti: caso positivo, riferimento inesistente (422), dipendenza
+spenta (503).
+
+### Collaudo ufficiale
+
+Dalla root `Exam/techconf-exam`:
+
+```powershell
+python -m pytest tests\integration -m mandatory -v
+```
+
+Risultato salvato in `collaudo.txt`: **27 passed, 10 deselected**.
+
+## Contratti e file protetti
+
+I file in `contracts/` e `tests/integration/` sono forniti dal docente e non devono essere
+modificati. Per verificarli (Git Bash/Linux):
 
 ```bash
 sha256sum -c CHECKSUMS.sha256
 ```
 
-If you believe a contract is wrong, **open an issue** — do not modify it.
+Su Windows i checksum vanno confrontati normalizzando i fine-riga a LF, perché il checkout
+può convertire i file in CRLF.
 
-## Running the acceptance suite
+## Spec-Driven Development
 
-1. Copy the manifest and declare the services you implemented:
+Le spec Kiro sono in `.kiro/specs/<servizio>/` e, per ogni servizio, contengono:
 
-   ```bash
-   cp services.example.yaml services.yaml
-   ```
+1. `requirements.md` — user story e acceptance criteria EARS;
+2. `design.md` — architettura, componenti, persistenza, dipendenze e test;
+3. `tasks.md` — task atomici tracciati ai requisiti e marcati come completati.
 
-2. Install the suite dependencies:
+Gli standard condivisi sono in `.kiro/steering/`. Il registro dei bug è in `BUGS.md`.
 
-   ```bash
-   pip install -r tests/integration/requirements.txt
-   ```
+## Bug fixing
 
-3. Run the suite:
-
-   ```bash
-   pytest tests/integration -v                 # all declared services
-   pytest tests/integration -m mandatory -v    # only the 3 mandatory services
-   pytest tests/integration -k registration -v # a single service
-   ```
-
-Services not declared in `services.yaml` are **skipped**, not failed.
-
-## The manifest (`services.yaml`)
-
-For each implemented service declare its working directory (`cwd`) and start `command`.
-The suite injects `PORT` and `*_SERVICE_URL` environment variables. Each service **must**
-listen on the port given by `PORT`.
-
-See `services.example.yaml` for the exact schema.
-
-## Ports
-
-- Development ports: `5001`–`5005`.
-- Acceptance ports: `15001`–`15005` (and `15101+` for resilience instances).
-- Your service must **always** read the port from the `PORT` environment variable.
-
-Logs of services launched by the suite are written to `.it-logs/<service>.log`.
+Le issue [#1](https://github.com/Luciossss/esame_ml/issues/1) e
+[#2](https://github.com/Luciossss/esame_ml/issues/2) seguono il flusso richiesto dalla
+traccia: issue → branch `fix/...` → test di regressione fallente → fix → commit `closes #N`
+→ merge su `main`. I dettagli sono documentati in `BUGS.md`.
