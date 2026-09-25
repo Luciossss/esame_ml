@@ -47,6 +47,37 @@ def _location(user_id: str) -> str:
     return f"/api/v1/users/{user_id}"
 
 
+def _parse_pagination() -> tuple[int, int]:
+    """Legge e valida ``page`` e ``page_size`` dalla query string.
+
+    Default: ``page=1``, ``page_size=20``. ``page_size`` max 100. Valori non interi o
+    fuori range -> ``ValidationError`` (422).
+    """
+    details: dict[str, str] = {}
+
+    def _as_int(name: str, default: int) -> int:
+        raw = request.args.get(name)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            details[name] = "must be an integer"
+            return default
+
+    page = _as_int("page", 1)
+    page_size = _as_int("page_size", 20)
+
+    if "page" not in details and page < 1:
+        details["page"] = "must be >= 1"
+    if "page_size" not in details and not (1 <= page_size <= 100):
+        details["page_size"] = "must be between 1 and 100"
+
+    if details:
+        raise ValidationError(details)
+    return page, page_size
+
+
 @bp.post("/api/v1/users")
 def create_user():
     payload = _json_body()
@@ -75,3 +106,28 @@ def update_user(user_id: str):
 def delete_user(user_id: str):
     _service().delete_user(user_id)
     return "", 204
+
+
+@bp.get("/api/v1/users/<user_id>")
+def get_user(user_id: str):
+    user = _service().get_user(user_id)
+    return jsonify(user.to_dict()), 200
+
+
+@bp.get("/api/v1/users")
+def list_users():
+    page, page_size = _parse_pagination()
+    role = request.args.get("role")
+    email = request.args.get("email")
+    items, total = _service().list_users(page, page_size, role=role, email=email)
+    return (
+        jsonify(
+            {
+                "items": [u.to_dict() for u in items],
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+            }
+        ),
+        200,
+    )
