@@ -8,6 +8,7 @@ from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from ..clients.user_client import UserClient
+from ..domain.models import EventStatus
 from ..domain.service import EventService
 from ..domain.validation import ValidationError
 from ..repository.factory import build_repository
@@ -96,6 +97,10 @@ def get_event(event_id: str):
 def list_events():
     page, page_size = _parse_pagination()
     status = request.args.get("status")
+    if status is not None and status not in {item.value for item in EventStatus}:
+        raise ValidationError(
+            {"status": "must be one of: draft, published, cancelled"}
+        )
     city = request.args.get("city")
     items, total = _service().list_events(page, page_size, status=status, city=city)
     return (
