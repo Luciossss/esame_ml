@@ -18,11 +18,11 @@ def create_app(config: Config | None = None) -> Flask:
     app.config["APP_CONFIG"] = config
 
     from .api.errors import register_error_handlers
+    from .api.health import bp as health_bp
     from .api.users import bp as users_bp
 
     register_error_handlers(app)
     app.register_blueprint(users_bp)
-
-    # Il blueprint health è registrato nel task T10.
+    app.register_blueprint(health_bp)
 
     return app
