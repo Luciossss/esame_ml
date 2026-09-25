@@ -17,4 +17,9 @@ services:
     command: python -m app
     health_path: /health
 
-  # event e registration verranno aggiunti dopo l'implementazione delle rispettive spec.
+  event:
+    cwd: services/event-service
+    command: python -m app
+    health_path: /health
+
+  # registration verrà aggiunto dopo l'implementazione della sua spec.
