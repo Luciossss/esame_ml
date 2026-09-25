@@ -22,4 +22,7 @@ services:
     command: python -m app
     health_path: /health
 
-  # registration verrà aggiunto dopo l'implementazione della sua spec.
+  registration:
+    cwd: services/registration-service
+    command: python -m app
+    health_path: /health
