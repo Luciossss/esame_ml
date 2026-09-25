@@ -52,6 +52,11 @@ class User:
     created_at: str = field(default_factory=now_iso)
     updated_at: str = field(default_factory=now_iso)
 
+    def __post_init__(self) -> None:
+        # Normalizza sempre role a Role, indipendentemente da come arriva (str o enum).
+        if not isinstance(self.role, Role):
+            self.role = Role(self.role)
+
     def to_dict(self) -> dict[str, Any]:
         """Serializza l'utente secondo lo schema ``User`` del contratto."""
         return {
