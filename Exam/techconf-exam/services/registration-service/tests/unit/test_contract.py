@@ -103,3 +103,17 @@ def test_contract_validation_error(client):
     r = client.post("/api/v1/registrations", json={"user_id": "u1"})
     assert r.status_code == 422
     assert_matches_contract("registration", "POST", "/api/v1/registrations", _as_contract_response(r))
+
+
+@pytest.mark.req("REQ-REG-F03")
+def test_invalid_status_filter_returns_422(client):
+    """Regression #2: un filtro status fuori enum deve produrre 422."""
+    r = client.get("/api/v1/registrations?status=invalid")
+    assert r.status_code == 422
+    assert r.get_json()["error"]["code"] == "VALIDATION_ERROR"
+    assert_matches_contract(
+        "registration",
+        "GET",
+        "/api/v1/registrations",
+        _as_contract_response(r),
+    )
